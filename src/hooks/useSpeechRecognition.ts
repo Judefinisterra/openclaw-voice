@@ -12,13 +12,15 @@ export function useSpeechRecognition() {
 
   const recRef = useRef<ReturnType<typeof createRecognition> | null>(null);
   const onResultRef = useRef<((text: string) => void) | null>(null);
+  const wantListeningRef = useRef(false);
+  const lastTranscriptRef = useRef('');
 
   function createRecognition() {
     const SR = (window as unknown as Record<string, unknown>).SpeechRecognition ??
       (window as unknown as Record<string, unknown>).webkitSpeechRecognition;
     if (!SR) return null;
     const rec = new (SR as new () => SpeechRecognition)();
-    rec.continuous = false;
+    rec.continuous = true;
     rec.interimResults = true;
     rec.lang = 'en-US';
     return rec;
@@ -26,36 +28,42 @@ export function useSpeechRecognition() {
 
   const start = useCallback(() => {
     if (!supported) return;
+    // Abort any existing session
+    if (recRef.current) {
+      try { recRef.current.abort(); } catch { /* ignore */ }
+    }
     const rec = createRecognition();
     if (!rec) return;
     recRef.current = rec;
+    wantListeningRef.current = true;
+    lastTranscriptRef.current = '';
     setTranscript('');
 
     rec.onresult = (e: SpeechRecognitionEvent) => {
-      let interim = '';
-      let final = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) {
-          final += t;
-        } else {
-          interim += t;
-        }
+      let full = '';
+      for (let i = 0; i < e.results.length; i++) {
+        full += e.results[i][0].transcript;
       }
-      const text = final || interim;
-      setTranscript(text);
+      lastTranscriptRef.current = full;
+      setTranscript(full);
     };
 
     rec.onend = () => {
+      // If we still want to be listening (user hasn't released), restart
+      if (wantListeningRef.current) {
+        try { rec.start(); } catch { /* ignore */ }
+        return;
+      }
       setIsListening(false);
-      // Get final transcript
-      setTranscript((t) => {
-        if (t.trim()) onResultRef.current?.(t.trim());
-        return t;
-      });
+      const text = lastTranscriptRef.current.trim();
+      if (text) onResultRef.current?.(text);
     };
 
-    rec.onerror = () => {
+    rec.onerror = (e: unknown) => {
+      const err = e as { error?: string };
+      // 'no-speech' and 'aborted' are not fatal — let onend handle restart
+      if (err.error === 'no-speech' || err.error === 'aborted') return;
+      wantListeningRef.current = false;
       setIsListening(false);
     };
 
@@ -64,8 +72,10 @@ export function useSpeechRecognition() {
   }, [supported]);
 
   const stop = useCallback(() => {
-    recRef.current?.stop();
-    setIsListening(false);
+    wantListeningRef.current = false;
+    if (recRef.current) {
+      try { recRef.current.stop(); } catch { /* ignore */ }
+    }
   }, []);
 
   const onFinalResult = useCallback((cb: (text: string) => void) => {
