@@ -7,6 +7,7 @@ interface SidebarProps {
   onSelectProfile: (id: string) => void;
   onClose?: () => void;
   connectionStatus: GatewayStatus;
+  onLock?: () => void;
 }
 
 const AVATAR_COLORS = [
@@ -41,6 +42,7 @@ export default function Sidebar({
   onSelectProfile,
   onClose,
   connectionStatus,
+  onLock,
 }: SidebarProps) {
   return (
     <div className="h-full flex flex-col bg-gray-950 border-r border-white/10">
@@ -101,6 +103,21 @@ export default function Sidebar({
           );
         })}
       </div>
+
+      {/* Lock button */}
+      {onLock && (
+        <div className="p-3 border-t border-white/10">
+          <button
+            onClick={onLock}
+            className="w-full flex items-center justify-center gap-2 text-xs text-gray-500 hover:text-gray-300 py-2 rounded-lg hover:bg-gray-800/50 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            Lock
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -268,9 +268,7 @@ export default function VoiceInterface({
       </div>
 
       {/* Chat transcript - scrollable */}
-      <div className="flex-1 overflow-y-auto min-h-0">
-        <Transcript messages={messages} streamingText={streamingText} />
-      </div>
+      <Transcript messages={messages} streamingText={streamingText} isProcessing={isProcessing} />
 
       {/* Text input bar */}
       <div className="flex-shrink-0 border-t border-white/10 bg-gray-900/80 backdrop-blur-sm px-4 py-3">
