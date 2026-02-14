@@ -104,11 +104,14 @@ export default function VoiceInterface({
   }, [stt, sendMessage]);
 
   // When assistant response completes, speak it
+  const ttsRef = useRef(tts);
+  ttsRef.current = tts;
   useEffect(() => {
     onResponseComplete((text) => {
-      tts.speak(text);
+      console.log('[Voice] response complete, calling TTS, text length:', text.length);
+      ttsRef.current.speak(text);
     });
-  }, [onResponseComplete, tts]);
+  }, [onResponseComplete]);
 
   // Auto-listen after TTS finishes (only in non-VAD mode)
   useEffect(() => {

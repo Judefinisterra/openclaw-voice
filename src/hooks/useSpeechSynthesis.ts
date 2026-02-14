@@ -14,6 +14,8 @@ export function useSpeechSynthesis() {
   }, []);
 
   const speak = useCallback((text: string) => {
+    console.log('[TTS] speak called, text length:', text.length);
+    
     // iOS Safari workaround: cancel and resume to ensure synthesis is active
     speechSynthesis.cancel();
     
@@ -21,39 +23,60 @@ export function useSpeechSynthesis() {
     const maxLen = 4000;
     const trimmed = text.length > maxLen ? text.slice(0, maxLen) + '...' : text;
     
-    const utt = new SpeechSynthesisUtterance(trimmed);
+    // Strip markdown/code that sounds bad when spoken
+    const cleaned = trimmed
+      .replace(/```[\s\S]*?```/g, ' code block omitted ')
+      .replace(/`[^`]+`/g, (m) => m.slice(1, -1))
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/#{1,6}\s/g, '')
+      .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
+      .replace(/\n{2,}/g, '. ')
+      .replace(/\n/g, ' ')
+      .trim();
+    
+    if (!cleaned) {
+      console.log('[TTS] nothing to speak after cleaning');
+      return;
+    }
+    
+    const utt = new SpeechSynthesisUtterance(cleaned);
     if (voiceUriRef.current) {
       const v = speechSynthesis.getVoices().find((v) => v.voiceURI === voiceUriRef.current);
       if (v) utt.voice = v;
     }
-    utt.onstart = () => setIsSpeaking(true);
+    
+    let resumeInterval: ReturnType<typeof setInterval> | null = null;
+    
+    utt.onstart = () => {
+      console.log('[TTS] speech started');
+      setIsSpeaking(true);
+    };
     utt.onend = () => {
+      console.log('[TTS] speech ended');
+      if (resumeInterval) clearInterval(resumeInterval);
       setIsSpeaking(false);
       onEndRef.current?.();
     };
     utt.onerror = (e) => {
-      // Don't treat 'interrupted' or 'canceled' as real errors
+      console.warn('[TTS] error:', e.error);
+      if (resumeInterval) clearInterval(resumeInterval);
       if (e.error !== 'interrupted' && e.error !== 'canceled') {
-        console.warn('TTS error:', e.error);
+        setIsSpeaking(false);
       }
-      setIsSpeaking(false);
     };
+    
     speechSynthesis.speak(utt);
+    console.log('[TTS] utterance queued, speaking:', speechSynthesis.speaking, 'pending:', speechSynthesis.pending);
     
     // iOS Safari bug: synthesis can pause silently. Resume periodically.
-    const resumeInterval = setInterval(() => {
-      if (!speechSynthesis.speaking) {
-        clearInterval(resumeInterval);
+    resumeInterval = setInterval(() => {
+      if (!speechSynthesis.speaking && !speechSynthesis.pending) {
+        if (resumeInterval) clearInterval(resumeInterval);
         return;
       }
       speechSynthesis.pause();
       speechSynthesis.resume();
-    }, 5000);
-    utt.onend = () => {
-      clearInterval(resumeInterval);
-      setIsSpeaking(false);
-      onEndRef.current?.();
-    };
+    }, 3000);
   }, []);
 
   const cancel = useCallback(() => {
