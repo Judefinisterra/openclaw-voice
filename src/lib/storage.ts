@@ -16,11 +16,12 @@ export function save(key: string, value: unknown): void {
 }
 
 // Profile helpers
+const PROFILE_VERSION = 2;
 const DEFAULT_PROFILES: Profile[] = [
   {
     id: 'c3po',
     name: 'C3-PO',
-    gatewayUrl: 'wss://josephs-mac-mini.taile0da4a.ts.net',
+    gatewayUrl: 'wss://particularly-fuji-fashion-delivered.trycloudflare.com',
     authToken: 'dev-token-2026',
     sessionKey: 'main',
     voiceUri: '',
@@ -28,6 +29,12 @@ const DEFAULT_PROFILES: Profile[] = [
 ];
 
 export function loadProfiles(): Profile[] {
+  const ver = load<number>('profileVersion', 0);
+  if (ver < PROFILE_VERSION) {
+    save('profileVersion', PROFILE_VERSION);
+    save('profiles', DEFAULT_PROFILES);
+    return DEFAULT_PROFILES;
+  }
   return load<Profile[]>('profiles', DEFAULT_PROFILES);
 }
 
