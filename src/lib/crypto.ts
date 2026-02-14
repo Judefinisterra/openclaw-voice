@@ -77,13 +77,13 @@ export function hasVault(): boolean {
   return localStorage.getItem(PREFIX + 'vault') !== null;
 }
 
-export async function createVault(password: string, profiles: unknown[]): Promise<void> {
-  const json = JSON.stringify(profiles);
+export async function createVault(password: string, data: unknown): Promise<void> {
+  const json = JSON.stringify(data);
   const blob = await encrypt(json, password);
   localStorage.setItem(PREFIX + 'vault', JSON.stringify(blob));
 }
 
-export async function unlockVault(password: string): Promise<unknown[]> {
+export async function unlockVault(password: string): Promise<unknown> {
   const raw = localStorage.getItem(PREFIX + 'vault');
   if (!raw) throw new Error('No vault found');
   const blob: EncryptedBlob = JSON.parse(raw);
@@ -91,8 +91,8 @@ export async function unlockVault(password: string): Promise<unknown[]> {
   return JSON.parse(json);
 }
 
-export async function updateVault(password: string, profiles: unknown[]): Promise<void> {
-  await createVault(password, profiles);
+export async function updateVault(password: string, data: unknown): Promise<void> {
+  await createVault(password, data);
 }
 
 export function clearVault(): void {

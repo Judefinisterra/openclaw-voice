@@ -1,4 +1,4 @@
-import type { Profile } from '../types';
+import type { Profile, ChatRoom } from '../types';
 
 const PREFIX = 'openclaw-voice:';
 
@@ -55,4 +55,22 @@ export function loadListeningMode(): boolean {
 
 export function saveListeningMode(enabled: boolean): void {
   save('listeningMode', enabled);
+}
+
+// Chat rooms (will be stored encrypted in vault alongside profiles)
+export function loadRooms(): ChatRoom[] {
+  return load<ChatRoom[]>('rooms', []);
+}
+
+export function saveRooms(rooms: ChatRoom[]): void {
+  save('rooms', rooms);
+}
+
+// Active context (single agent or room)
+export function loadActiveContext(): { type: 'single'; profileId: string } | { type: 'room'; roomId: string } | null {
+  return load<{ type: 'single'; profileId: string } | { type: 'room'; roomId: string } | null>('activeContext', null);
+}
+
+export function saveActiveContext(context: { type: 'single'; profileId: string } | { type: 'room'; roomId: string }): void {
+  save('activeContext', context);
 }

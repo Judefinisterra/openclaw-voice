@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Profile } from '../types';
+import type { Profile, ChatRoom, VaultData } from '../types';
 import {
   hasVault,
   createVault,
@@ -12,7 +12,7 @@ import {
 } from '../lib/crypto';
 
 interface AuthGateProps {
-  children: (props: { profiles: Profile[]; password: string; onLock: () => void }) => React.ReactNode;
+  children: (props: { profiles: Profile[]; rooms: ChatRoom[]; password: string; onLock: () => void }) => React.ReactNode;
 }
 
 type Screen = 'loading' | 'setup' | 'login' | 'locked';
@@ -26,6 +26,7 @@ function makeId(): string {
 export default function AuthGate({ children }: AuthGateProps) {
   const [screen, setScreen] = useState<Screen>('loading');
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
+  const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [lockCountdown, setLockCountdown] = useState(0);
@@ -57,6 +58,7 @@ export default function AuthGate({ children }: AuthGateProps) {
     activityTimerRef.current = setInterval(() => {
       if (isSessionExpired()) {
         setProfiles(null);
+        setRooms([]);
         setPassword('');
         setScreen('login');
       }
@@ -87,6 +89,7 @@ export default function AuthGate({ children }: AuthGateProps) {
 
   const handleLock = useCallback(() => {
     setProfiles(null);
+    setRooms([]);
     setPassword('');
     setScreen('login');
   }, []);
@@ -99,11 +102,13 @@ export default function AuthGate({ children }: AuthGateProps) {
     return (
       <SetupScreen
         onComplete={async (pw, newProfiles) => {
-          await createVault(pw, newProfiles);
+          const vaultData: VaultData = { profiles: newProfiles, rooms: [] };
+          await createVault(pw, vaultData);
           clearRateLimit();
           touchActivity();
           setPassword(pw);
           setProfiles(newProfiles);
+          setRooms([]);
         }}
       />
     );
@@ -122,11 +127,19 @@ export default function AuthGate({ children }: AuthGateProps) {
             return;
           }
           try {
-            const data = await unlockVault(pw) as Profile[];
+            const raw = await unlockVault(pw);
+            // Support old format (plain array of profiles) and new VaultData format
+            let vaultData: VaultData;
+            if (Array.isArray(raw)) {
+              vaultData = { profiles: raw as Profile[], rooms: [] };
+            } else {
+              vaultData = raw as VaultData;
+            }
             clearRateLimit();
             touchActivity();
             setPassword(pw);
-            setProfiles(data);
+            setProfiles(vaultData.profiles);
+            setRooms(vaultData.rooms || []);
             setError('');
           } catch {
             const result = recordFailure();
@@ -150,7 +163,7 @@ export default function AuthGate({ children }: AuthGateProps) {
   }
 
   if (profiles) {
-    return <>{children({ profiles, password, onLock: handleLock })}</>;
+    return <>{children({ profiles, rooms, password, onLock: handleLock })}</>;
   }
 
   return <LoadingScreen />;

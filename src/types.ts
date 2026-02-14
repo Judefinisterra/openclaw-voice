@@ -4,6 +4,8 @@ export interface Message {
   role: 'user' | 'assistant';
   text: string;
   timestamp: number;
+  agentId?: string;
+  agentName?: string;
 }
 
 export interface ConnectionConfig {
@@ -37,3 +39,19 @@ export interface SessionInfo {
   lastMessage?: string;
   lastTimestamp?: number;
 }
+
+export interface ChatRoom {
+  id: string;
+  name: string;
+  agentIds: string[];
+  created: number;
+}
+
+export interface VaultData {
+  profiles: Profile[];
+  rooms: ChatRoom[];
+}
+
+export type ChatTarget =
+  | { type: 'agent'; profileId: string }
+  | { type: 'room'; roomId: string };

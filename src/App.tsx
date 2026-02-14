@@ -4,8 +4,8 @@ import MainApp from './components/MainApp';
 export default function App() {
   return (
     <AuthGate>
-      {({ profiles, password, onLock }) => (
-        <MainApp profiles={profiles} password={password} onLock={onLock} />
+      {({ profiles, rooms, password, onLock }) => (
+        <MainApp profiles={profiles} rooms={rooms} password={password} onLock={onLock} />
       )}
     </AuthGate>
   );
