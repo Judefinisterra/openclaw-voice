@@ -28,6 +28,7 @@ export interface Profile {
   sessionKey: string;
   voiceUri: string;
   elevenLabsVoiceId?: string;
+  role?: string;
 }
 
 export interface SessionInfo {
