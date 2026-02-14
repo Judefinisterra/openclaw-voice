@@ -8,6 +8,7 @@ interface SpeechRecognitionEvent {
 export function useSpeechRecognition() {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const [error, setError] = useState('');
   const [supported] = useState(() => 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
 
   const recRef = useRef<ReturnType<typeof createRecognition> | null>(null);
@@ -38,6 +39,7 @@ export function useSpeechRecognition() {
     wantListeningRef.current = true;
     lastTranscriptRef.current = '';
     setTranscript('');
+    setError('');
 
     rec.onresult = (e: SpeechRecognitionEvent) => {
       let full = '';
@@ -65,6 +67,7 @@ export function useSpeechRecognition() {
       if (err.error === 'no-speech' || err.error === 'aborted') return;
       wantListeningRef.current = false;
       setIsListening(false);
+      setError(`STT error: ${err.error || 'unknown'}`);
     };
 
     rec.start();
@@ -82,7 +85,7 @@ export function useSpeechRecognition() {
     onResultRef.current = cb;
   }, []);
 
-  return { isListening, transcript, supported, start, stop, onFinalResult };
+  return { isListening, transcript, supported, start, stop, onFinalResult, error };
 }
 
 // Augment window types

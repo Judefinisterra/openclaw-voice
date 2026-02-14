@@ -164,6 +164,11 @@ export default function VoiceInterface({
         transcript={stt.isListening ? stt.transcript : undefined}
       />
 
+      {/* Debug info */}
+      {stt.error && (
+        <p className="mt-2 text-red-400 text-xs">{stt.error}</p>
+      )}
+
       {/* Streaming text */}
       {streamingText && !tts.isSpeaking && (
         <p className="mt-6 text-gray-300 text-sm max-w-md text-center px-4 line-clamp-3">

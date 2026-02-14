@@ -93,6 +93,9 @@ export default function Orb({ state, onClick, onHoldStart, onHoldEnd, transcript
         onPointerCancel={handlePointerCancel}
         onPointerLeave={handlePointerCancel}
         onContextMenu={(e) => e.preventDefault()}
+        onKeyDown={(e) => { if (e.code === 'Space') e.preventDefault(); }}
+        onKeyUp={(e) => { if (e.code === 'Space') e.preventDefault(); }}
+        tabIndex={-1}
         style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
         className={`
           relative w-40 h-40 rounded-full ring-4 transition-all duration-500
