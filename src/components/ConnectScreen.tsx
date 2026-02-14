@@ -113,7 +113,7 @@ export default function ConnectScreen({ onConnect, status, error }: ConnectScree
                   setEditProfile({
                     id: generateId(),
                     name: 'New Agent',
-                    gatewayUrl: 'wss://josephs-mac-mini.taile0da4a.ts.net:19010',
+                    gatewayUrl: 'wss://violin-garage-characterization-participation.trycloudflare.com',
                     authToken: '',
                     sessionKey: 'main',
                     voiceUri: '',
