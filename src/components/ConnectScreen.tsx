@@ -113,7 +113,7 @@ export default function ConnectScreen({ onConnect, status, error }: ConnectScree
                   setEditProfile({
                     id: generateId(),
                     name: 'New Agent',
-                    gatewayUrl: 'wss://josephs-mac-mini.taile0da4a.ts.net',
+                    gatewayUrl: 'wss://josephs-mac-mini.taile0da4a.ts.net:19010',
                     authToken: '',
                     sessionKey: 'main',
                     voiceUri: '',
