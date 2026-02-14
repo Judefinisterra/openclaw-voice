@@ -122,7 +122,18 @@ export default function VoiceInterface({
       </div>
 
       {/* Orb */}
-      <Orb state={orbState} onClick={handleOrbClick} transcript={stt.isListening ? stt.transcript : undefined} />
+      <Orb
+        state={orbState}
+        onClick={handleOrbClick}
+        onHoldStart={() => {
+          if (tts.isSpeaking) tts.cancel();
+          if (stt.supported && !stt.isListening) stt.start();
+        }}
+        onHoldEnd={() => {
+          if (stt.isListening) stt.stop();
+        }}
+        transcript={stt.isListening ? stt.transcript : undefined}
+      />
 
       {/* Streaming text */}
       {streamingText && !tts.isSpeaking && (

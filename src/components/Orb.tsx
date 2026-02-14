@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { OrbState } from '../types';
 
 const stateStyles: Record<OrbState, { bg: string; ring: string; anim: string; glow: string }> = {
@@ -28,7 +29,7 @@ const stateStyles: Record<OrbState, { bg: string; ring: string; anim: string; gl
 };
 
 const stateLabels: Record<OrbState, string> = {
-  idle: 'Tap to speak',
+  idle: 'Tap or hold to speak',
   listening: 'Listening...',
   processing: 'Thinking...',
   speaking: 'Speaking...',
@@ -37,16 +38,62 @@ const stateLabels: Record<OrbState, string> = {
 interface OrbProps {
   state: OrbState;
   onClick: () => void;
+  onHoldStart?: () => void;
+  onHoldEnd?: () => void;
   transcript?: string;
 }
 
-export default function Orb({ state, onClick, transcript }: OrbProps) {
+export default function Orb({ state, onClick, onHoldStart, onHoldEnd, transcript }: OrbProps) {
   const s = stateStyles[state];
+
+  // Track whether this is a hold gesture vs a tap
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isHoldingRef = useRef(false);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    // Start a timer — if held > 200ms, treat as push-to-talk
+    holdTimerRef.current = setTimeout(() => {
+      isHoldingRef.current = true;
+      onHoldStart?.();
+    }, 200);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (isHoldingRef.current) {
+      isHoldingRef.current = false;
+      onHoldEnd?.();
+    } else {
+      // Short tap — toggle
+      onClick();
+    }
+  };
+
+  const handlePointerCancel = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (isHoldingRef.current) {
+      isHoldingRef.current = false;
+      onHoldEnd?.();
+    }
+  };
 
   return (
     <div className="flex flex-col items-center gap-6">
       <button
-        onClick={onClick}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onPointerLeave={handlePointerCancel}
+        onContextMenu={(e) => e.preventDefault()}
+        style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
         className={`
           relative w-40 h-40 rounded-full ring-4 transition-all duration-500
           ${s.bg} ${s.ring} ${s.anim} ${s.glow}
