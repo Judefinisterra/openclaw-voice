@@ -1,42 +1,52 @@
 import { useState, useEffect } from 'react';
-import { load, save, loadProfiles, saveProfiles, loadActiveProfileId } from '../lib/storage';
-import type { Settings as SettingsType, Profile } from '../types';
+import { load, save, loadProfiles, saveProfiles, loadActiveProfileId, loadElevenLabsKey, saveElevenLabsKey } from '../lib/storage';
+import type { Settings as SettingsType } from '../types';
+import type { ElevenLabsVoice } from '../hooks/useElevenLabs';
 
 interface SettingsProps {
   open: boolean;
   onClose: () => void;
-  voices: SpeechSynthesisVoice[];
+  browserVoices: SpeechSynthesisVoice[];
   onVoiceChange: (uri: string) => void;
   onSettingsChange: (s: SettingsType) => void;
   gatewayUrl: string;
   authToken: string;
   onReconnect: (url: string, token: string, sessionKey: string) => void;
   profileName: string;
+  elevenVoices: ElevenLabsVoice[];
+  elevenLoading: boolean;
+  fetchElevenVoices: () => Promise<void>;
+  onElevenVoiceChange: (voiceId: string) => void;
 }
 
 export default function Settings({
   open,
   onClose,
-  voices,
+  browserVoices,
   onVoiceChange,
   onSettingsChange,
   gatewayUrl,
   authToken,
   onReconnect,
   profileName,
+  elevenVoices,
+  elevenLoading,
+  fetchElevenVoices,
+  onElevenVoiceChange,
 }: SettingsProps) {
   const [settings, setSettings] = useState<SettingsType>(() =>
-    load<SettingsType>('settings', { voiceUri: '', autoListen: true, sessionKey: 'main', vadEnabled: true }),
+    load<SettingsType>('settings', { voiceUri: '', autoListen: true, sessionKey: 'main', vadEnabled: true, elevenLabsVoiceId: '' }),
   );
   const [url, setUrl] = useState(gatewayUrl);
   const [token, setToken] = useState(authToken);
+  const [elevenKey, setElevenKey] = useState(() => loadElevenLabsKey());
+  const [elevenKeySaved, setElevenKeySaved] = useState(false);
 
   useEffect(() => {
     setUrl(gatewayUrl);
     setToken(authToken);
   }, [gatewayUrl, authToken]);
 
-  // Load per-profile voice on open
   useEffect(() => {
     if (open && profileName) {
       const profiles = loadProfiles();
@@ -44,17 +54,27 @@ export default function Settings({
       if (profile?.voiceUri) {
         setSettings((s) => ({ ...s, voiceUri: profile.voiceUri }));
       }
+      if (profile?.elevenLabsVoiceId) {
+        setSettings((s) => ({ ...s, elevenLabsVoiceId: profile.elevenLabsVoiceId! }));
+      }
     }
   }, [open, profileName]);
+
+  // Auto-fetch ElevenLabs voices when opened with key configured
+  useEffect(() => {
+    if (open && loadElevenLabsKey() && elevenVoices.length === 0) {
+      fetchElevenVoices();
+    }
+  }, [open, fetchElevenVoices, elevenVoices.length]);
 
   const update = (patch: Partial<SettingsType>) => {
     const next = { ...settings, ...patch };
     setSettings(next);
     save('settings', next);
     onSettingsChange(next);
+
     if (patch.voiceUri !== undefined) {
       onVoiceChange(patch.voiceUri);
-      // Save voice to active profile
       const profiles = loadProfiles();
       const activeId = loadActiveProfileId();
       const updated = profiles.map((p) =>
@@ -62,16 +82,23 @@ export default function Settings({
       );
       saveProfiles(updated);
     }
+
+    if (patch.elevenLabsVoiceId !== undefined) {
+      onElevenVoiceChange(patch.elevenLabsVoiceId);
+      const profiles = loadProfiles();
+      const activeId = loadActiveProfileId();
+      const updated = profiles.map((p) =>
+        p.id === activeId ? { ...p, elevenLabsVoiceId: patch.elevenLabsVoiceId! } : p,
+      );
+      saveProfiles(updated);
+    }
   };
 
-  const testVoice = () => {
-    speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance('Hello, I am your assistant.');
-    if (settings.voiceUri) {
-      const v = speechSynthesis.getVoices().find((v) => v.voiceURI === settings.voiceUri);
-      if (v) utt.voice = v;
-    }
-    speechSynthesis.speak(utt);
+  const handleSaveElevenKey = () => {
+    saveElevenLabsKey(elevenKey);
+    setElevenKeySaved(true);
+    setTimeout(() => setElevenKeySaved(false), 2000);
+    if (elevenKey) fetchElevenVoices();
   };
 
   if (!open) return null;
@@ -133,9 +160,59 @@ export default function Settings({
 
           <hr className="border-white/10" />
 
+          {/* ElevenLabs TTS Section */}
+          <div>
+            <h3 className="text-sm font-semibold text-purple-400 mb-2">🔊 ElevenLabs TTS</h3>
+            <label className="block text-xs text-gray-400 mb-1">API Key</label>
+            <div className="flex gap-2">
+              <input
+                value={elevenKey}
+                onChange={(e) => setElevenKey(e.target.value)}
+                type="password"
+                placeholder="xi-..."
+                className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm"
+              />
+              <button
+                onClick={handleSaveElevenKey}
+                className={`px-3 py-2 rounded text-xs font-medium transition-colors ${
+                  elevenKeySaved ? 'bg-green-600' : 'bg-gray-700 hover:bg-gray-600'
+                }`}
+              >
+                {elevenKeySaved ? '✓' : 'Save'}
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-600 mt-1">Stored locally. Only sent to ElevenLabs API.</p>
+          </div>
+
+          {elevenKey && (
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">
+                ElevenLabs Voice <span className="text-purple-400">(per profile)</span>
+              </label>
+              {elevenLoading ? (
+                <p className="text-xs text-gray-500">Loading voices...</p>
+              ) : (
+                <select
+                  value={settings.elevenLabsVoiceId}
+                  onChange={(e) => update({ elevenLabsVoiceId: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm"
+                >
+                  <option value="">Use browser TTS</option>
+                  {elevenVoices.map((v) => (
+                    <option key={v.voice_id} value={v.voice_id}>
+                      {v.name} {v.category ? `(${v.category})` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          <hr className="border-white/10" />
+
           <div>
             <label className="block text-xs text-gray-400 mb-1">
-              TTS Voice <span className="text-purple-400">(per profile)</span>
+              Browser TTS Voice <span className="text-gray-600">(fallback)</span>
             </label>
             <select
               value={settings.voiceUri}
@@ -143,18 +220,12 @@ export default function Settings({
               className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm"
             >
               <option value="">Default</option>
-              {voices.map((v) => (
+              {browserVoices.map((v) => (
                 <option key={v.voiceURI} value={v.voiceURI}>
                   {v.name} ({v.lang})
                 </option>
               ))}
             </select>
-            <button
-              onClick={testVoice}
-              className="mt-2 text-xs text-blue-400 hover:text-blue-300"
-            >
-              ▶ Test voice
-            </button>
           </div>
 
           <label className="flex items-center gap-2 text-sm">
@@ -179,11 +250,6 @@ export default function Settings({
               <span className="text-purple-400 text-xs ml-1">✦</span>
             </span>
           </label>
-          {settings.vadEnabled && (
-            <p className="text-xs text-gray-500 -mt-2 ml-6">
-              Automatically detects when you start/stop speaking. No button needed.
-            </p>
-          )}
         </div>
       </div>
     </div>

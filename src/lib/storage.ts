@@ -49,3 +49,21 @@ export function loadActiveProfileId(): string {
 export function saveActiveProfileId(id: string): void {
   save('activeProfileId', id);
 }
+
+// ElevenLabs
+export function loadElevenLabsKey(): string {
+  return load<string>('elevenLabsApiKey', '');
+}
+
+export function saveElevenLabsKey(key: string): void {
+  save('elevenLabsApiKey', key);
+}
+
+// VAD / listening mode
+export function loadListeningMode(): boolean {
+  return load<boolean>('listeningMode', true);
+}
+
+export function saveListeningMode(enabled: boolean): void {
+  save('listeningMode', enabled);
+}

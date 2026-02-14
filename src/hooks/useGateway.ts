@@ -3,11 +3,12 @@ import {
   makeConnectFrame,
   makeChatSendFrame,
   makeSessionHistoryFrame,
+  makeSessionListFrame,
   extractTextFromMessage,
   type WsFrame,
   type ChatEventPayload,
 } from '../lib/protocol';
-import type { Message } from '../types';
+import type { Message, SessionInfo } from '../types';
 
 export type GatewayStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -17,12 +18,14 @@ export function useGateway() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [streamingText, setStreamingText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const configRef = useRef({ url: '', token: '', sessionKey: 'main' });
   const onCompleteRef = useRef<((text: string) => void) | null>(null);
   const connectIdRef = useRef<string | null>(null);
   const historyIdRef = useRef<string | null>(null);
+  const sessionListIdRef = useRef<string | null>(null);
   const accumulatedTextRef = useRef('');
 
   const connect = useCallback((url: string, token: string, sessionKey: string) => {
@@ -59,9 +62,29 @@ export function useGateway() {
           const histFrame = makeSessionHistoryFrame(sessionKey);
           historyIdRef.current = histFrame.id;
           ws.send(JSON.stringify(histFrame));
+          // Fetch session list
+          const listFrame = makeSessionListFrame();
+          sessionListIdRef.current = listFrame.id;
+          ws.send(JSON.stringify(listFrame));
         } else {
           setStatus('error');
           setError(frame.error?.message ?? 'Connection rejected');
+        }
+        return;
+      }
+
+      // Handle session list response
+      if (frame.type === 'res' && frame.id === sessionListIdRef.current) {
+        if (frame.ok && frame.payload) {
+          const payload = frame.payload as { sessions?: Array<{ sessionKey: string; label?: string; lastMessage?: string; lastTimestamp?: number }> };
+          if (payload.sessions) {
+            setSessions(payload.sessions.map((s) => ({
+              sessionKey: s.sessionKey,
+              label: s.label,
+              lastMessage: s.lastMessage,
+              lastTimestamp: s.lastTimestamp,
+            })));
+          }
         }
         return;
       }
@@ -153,9 +176,29 @@ export function useGateway() {
     wsRef.current.send(JSON.stringify(frame));
   }, []);
 
+  const switchSession = useCallback((sessionKey: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    configRef.current.sessionKey = sessionKey;
+    setMessages([]);
+    setStreamingText('');
+    accumulatedTextRef.current = '';
+    const histFrame = makeSessionHistoryFrame(sessionKey);
+    historyIdRef.current = histFrame.id;
+    wsRef.current.send(JSON.stringify(histFrame));
+  }, []);
+
+  const refreshSessions = useCallback(() => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    const listFrame = makeSessionListFrame();
+    sessionListIdRef.current = listFrame.id;
+    wsRef.current.send(JSON.stringify(listFrame));
+  }, []);
+
   const onResponseComplete = useCallback((cb: (text: string) => void) => {
     onCompleteRef.current = cb;
   }, []);
+
+  const getSessionKey = useCallback(() => configRef.current.sessionKey, []);
 
   return {
     status,
@@ -163,9 +206,13 @@ export function useGateway() {
     messages,
     streamingText,
     isProcessing,
+    sessions,
     connect,
     disconnect,
     sendMessage,
+    switchSession,
+    refreshSessions,
     onResponseComplete,
+    getSessionKey,
   };
 }

@@ -17,6 +17,7 @@ export interface Settings {
   autoListen: boolean;
   sessionKey: string;
   vadEnabled: boolean;
+  elevenLabsVoiceId: string;
 }
 
 export interface Profile {
@@ -26,4 +27,12 @@ export interface Profile {
   authToken: string;
   sessionKey: string;
   voiceUri: string;
+  elevenLabsVoiceId?: string;
+}
+
+export interface SessionInfo {
+  sessionKey: string;
+  label?: string;
+  lastMessage?: string;
+  lastTimestamp?: number;
 }

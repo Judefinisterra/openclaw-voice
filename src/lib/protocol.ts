@@ -68,6 +68,15 @@ export function makeSessionHistoryFrame(sessionKey: string): WsRequest {
   };
 }
 
+export function makeSessionListFrame(): WsRequest {
+  return {
+    type: 'req',
+    method: 'session.list',
+    id: nextId(),
+    params: {},
+  };
+}
+
 /**
  * Chat event payload shape
  */
