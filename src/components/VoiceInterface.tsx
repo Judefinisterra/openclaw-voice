@@ -53,6 +53,38 @@ export default function VoiceInterface({
 
   // Track if VAD-triggered STT is active
   const vadTriggeredRef = useRef(false);
+  const audioUnlockedRef = useRef(false);
+
+  // iOS Safari: unlock audio on first user interaction
+  useEffect(() => {
+    const unlock = () => {
+      if (audioUnlockedRef.current) return;
+      audioUnlockedRef.current = true;
+      // Warm up SpeechSynthesis
+      const utt = new SpeechSynthesisUtterance('');
+      utt.volume = 0;
+      speechSynthesis.speak(utt);
+      speechSynthesis.cancel();
+      // Warm up AudioContext for ElevenLabs
+      try {
+        const ctx = new AudioContext();
+        const buf = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(0);
+        ctx.resume();
+      } catch {}
+      document.removeEventListener('touchstart', unlock);
+      document.removeEventListener('click', unlock);
+    };
+    document.addEventListener('touchstart', unlock, { once: true });
+    document.addEventListener('click', unlock, { once: true });
+    return () => {
+      document.removeEventListener('touchstart', unlock);
+      document.removeEventListener('click', unlock);
+    };
+  }, []);
 
   // Set voice from settings
   useEffect(() => {
