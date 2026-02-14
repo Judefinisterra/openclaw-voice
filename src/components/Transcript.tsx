@@ -7,7 +7,7 @@ interface TranscriptProps {
 }
 
 export default function Transcript({ messages, streamingText }: TranscriptProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -17,27 +17,47 @@ export default function Transcript({ messages, streamingText }: TranscriptProps)
   if (messages.length === 0 && !streamingText) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm border-t border-white/10">
+    <div className="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-sm border-t border-white/10">
+      {/* Toggle bar */}
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => setCollapsed(!collapsed)}
         className="w-full px-4 py-2 text-xs text-gray-400 hover:text-gray-200 flex items-center justify-center gap-1"
       >
-        <span>{expanded ? '▼' : '▲'}</span>
-        <span>Transcript ({messages.length})</span>
+        <span>{collapsed ? '▲' : '▼'}</span>
+        <span>Chat ({messages.length})</span>
       </button>
-      {expanded && (
-        <div className="max-h-48 overflow-y-auto px-4 pb-4 space-y-2">
+
+      {!collapsed && (
+        <div className="max-h-64 overflow-y-auto px-4 pb-4 space-y-3">
           {messages.map((m, i) => (
-            <div key={i} className={`text-sm ${m.role === 'user' ? 'text-blue-300' : 'text-green-300'}`}>
-              <span className="font-bold opacity-60">{m.role === 'user' ? 'You' : 'Agent'}:</span>{' '}
-              {m.text}
+            <div
+              key={i}
+              className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
+                  m.role === 'user'
+                    ? 'bg-blue-600 text-white rounded-br-sm'
+                    : 'bg-gray-800 text-gray-200 rounded-bl-sm'
+                }`}
+              >
+                <p className="whitespace-pre-wrap">{m.text}</p>
+                <p className="text-[10px] opacity-40 mt-1">
+                  {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
             </div>
           ))}
+
           {streamingText && (
-            <div className="text-sm text-yellow-300 opacity-70">
-              <span className="font-bold opacity-60">Agent:</span> {streamingText}...
+            <div className="flex justify-start">
+              <div className="max-w-[80%] rounded-2xl px-4 py-2 text-sm bg-gray-800 text-yellow-200 rounded-bl-sm">
+                <p className="whitespace-pre-wrap">{streamingText}</p>
+                <span className="inline-block w-2 h-4 bg-yellow-300 animate-pulse ml-0.5" />
+              </div>
             </div>
           )}
+
           <div ref={bottomRef} />
         </div>
       )}

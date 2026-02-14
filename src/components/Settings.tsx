@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { load, save } from '../lib/storage';
-import type { Settings as SettingsType } from '../types';
+import { load, save, loadProfiles, saveProfiles, loadActiveProfileId } from '../lib/storage';
+import type { Settings as SettingsType, Profile } from '../types';
 
 interface SettingsProps {
   open: boolean;
@@ -11,6 +11,7 @@ interface SettingsProps {
   gatewayUrl: string;
   authToken: string;
   onReconnect: (url: string, token: string, sessionKey: string) => void;
+  profileName: string;
 }
 
 export default function Settings({
@@ -22,9 +23,10 @@ export default function Settings({
   gatewayUrl,
   authToken,
   onReconnect,
+  profileName,
 }: SettingsProps) {
   const [settings, setSettings] = useState<SettingsType>(() =>
-    load<SettingsType>('settings', { voiceUri: '', autoListen: true, sessionKey: 'main' }),
+    load<SettingsType>('settings', { voiceUri: '', autoListen: true, sessionKey: 'main', vadEnabled: true }),
   );
   const [url, setUrl] = useState(gatewayUrl);
   const [token, setToken] = useState(authToken);
@@ -34,12 +36,42 @@ export default function Settings({
     setToken(authToken);
   }, [gatewayUrl, authToken]);
 
+  // Load per-profile voice on open
+  useEffect(() => {
+    if (open && profileName) {
+      const profiles = loadProfiles();
+      const profile = profiles.find((p) => p.name === profileName);
+      if (profile?.voiceUri) {
+        setSettings((s) => ({ ...s, voiceUri: profile.voiceUri }));
+      }
+    }
+  }, [open, profileName]);
+
   const update = (patch: Partial<SettingsType>) => {
     const next = { ...settings, ...patch };
     setSettings(next);
     save('settings', next);
     onSettingsChange(next);
-    if (patch.voiceUri !== undefined) onVoiceChange(patch.voiceUri);
+    if (patch.voiceUri !== undefined) {
+      onVoiceChange(patch.voiceUri);
+      // Save voice to active profile
+      const profiles = loadProfiles();
+      const activeId = loadActiveProfileId();
+      const updated = profiles.map((p) =>
+        p.id === activeId ? { ...p, voiceUri: patch.voiceUri! } : p,
+      );
+      saveProfiles(updated);
+    }
+  };
+
+  const testVoice = () => {
+    speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance('Hello, I am your assistant.');
+    if (settings.voiceUri) {
+      const v = speechSynthesis.getVoices().find((v) => v.voiceURI === settings.voiceUri);
+      if (v) utt.voice = v;
+    }
+    speechSynthesis.speak(utt);
   };
 
   if (!open) return null;
@@ -56,6 +88,10 @@ export default function Settings({
         </div>
 
         <div className="space-y-5">
+          <div className="text-xs text-gray-500 bg-gray-800 rounded px-3 py-2">
+            Profile: <span className="text-gray-300">{profileName}</span>
+          </div>
+
           <div>
             <label className="block text-xs text-gray-400 mb-1">Gateway URL</label>
             <input
@@ -95,8 +131,12 @@ export default function Settings({
             Reconnect
           </button>
 
+          <hr className="border-white/10" />
+
           <div>
-            <label className="block text-xs text-gray-400 mb-1">TTS Voice</label>
+            <label className="block text-xs text-gray-400 mb-1">
+              TTS Voice <span className="text-purple-400">(per profile)</span>
+            </label>
             <select
               value={settings.voiceUri}
               onChange={(e) => update({ voiceUri: e.target.value })}
@@ -109,6 +149,12 @@ export default function Settings({
                 </option>
               ))}
             </select>
+            <button
+              onClick={testVoice}
+              className="mt-2 text-xs text-blue-400 hover:text-blue-300"
+            >
+              ▶ Test voice
+            </button>
           </div>
 
           <label className="flex items-center gap-2 text-sm">
@@ -120,6 +166,24 @@ export default function Settings({
             />
             Auto-listen after response
           </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={settings.vadEnabled}
+              onChange={(e) => update({ vadEnabled: e.target.checked })}
+              className="rounded"
+            />
+            <span>
+              Hands-free (VAD)
+              <span className="text-purple-400 text-xs ml-1">✦</span>
+            </span>
+          </label>
+          {settings.vadEnabled && (
+            <p className="text-xs text-gray-500 -mt-2 ml-6">
+              Automatically detects when you start/stop speaking. No button needed.
+            </p>
+          )}
         </div>
       </div>
     </div>

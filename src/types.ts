@@ -1,4 +1,4 @@
-export type OrbState = 'idle' | 'listening' | 'processing' | 'speaking';
+export type OrbState = 'idle' | 'listening' | 'processing' | 'speaking' | 'vad-ready';
 
 export interface Message {
   role: 'user' | 'assistant';
@@ -16,4 +16,14 @@ export interface Settings {
   voiceUri: string;
   autoListen: boolean;
   sessionKey: string;
+  vadEnabled: boolean;
+}
+
+export interface Profile {
+  id: string;
+  name: string;
+  gatewayUrl: string;
+  authToken: string;
+  sessionKey: string;
+  voiceUri: string;
 }

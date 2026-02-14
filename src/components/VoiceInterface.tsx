@@ -4,6 +4,7 @@ import Transcript from './Transcript';
 import Settings from './Settings';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useSpeechSynthesis } from '../hooks/useSpeechSynthesis';
+import { useVAD } from '../hooks/useVAD';
 import { load } from '../lib/storage';
 import type { OrbState, Message, Settings as SettingsType } from '../types';
 import type { GatewayStatus } from '../hooks/useGateway';
@@ -19,6 +20,7 @@ interface VoiceInterfaceProps {
   reconnect: (url: string, token: string, sessionKey: string) => void;
   gatewayUrl: string;
   authToken: string;
+  profileName: string;
 }
 
 export default function VoiceInterface({
@@ -32,13 +34,18 @@ export default function VoiceInterface({
   reconnect,
   gatewayUrl,
   authToken,
+  profileName,
 }: VoiceInterfaceProps) {
   const stt = useSpeechRecognition();
   const tts = useSpeechSynthesis();
+  const vad = useVAD();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<SettingsType>(() =>
-    load<SettingsType>('settings', { voiceUri: '', autoListen: true, sessionKey: 'main' }),
+    load<SettingsType>('settings', { voiceUri: '', autoListen: true, sessionKey: 'main', vadEnabled: true }),
   );
+
+  // Track if VAD-triggered STT is active
+  const vadTriggeredRef = useRef(false);
 
   // Set voice from settings
   useEffect(() => {
@@ -49,6 +56,7 @@ export default function VoiceInterface({
   useEffect(() => {
     stt.onFinalResult((text) => {
       sendMessage(text);
+      vadTriggeredRef.current = false;
     });
   }, [stt, sendMessage]);
 
@@ -59,22 +67,55 @@ export default function VoiceInterface({
     });
   }, [onResponseComplete, tts]);
 
-  // Auto-listen after TTS finishes
+  // Auto-listen after TTS finishes (only in non-VAD mode)
   useEffect(() => {
     tts.onSpeakEnd(() => {
-      if (settings.autoListen && stt.supported) {
+      if (!settings.vadEnabled && settings.autoListen && stt.supported) {
         setTimeout(() => stt.start(), 300);
       }
     });
-  }, [tts, stt, settings.autoListen]);
+  }, [tts, stt, settings.autoListen, settings.vadEnabled]);
 
+  // VAD: start/stop
+  useEffect(() => {
+    if (settings.vadEnabled) {
+      vad.start();
+    } else {
+      vad.stop();
+    }
+  }, [settings.vadEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // VAD: wire up speech start/end
+  useEffect(() => {
+    vad.onSpeechStart(() => {
+      if (isProcessing || tts.isSpeaking) return;
+      if (stt.supported && !stt.isListening) {
+        vadTriggeredRef.current = true;
+        // Cancel any ongoing TTS
+        tts.cancel();
+        stt.start();
+      }
+    });
+  }, [vad, stt, tts, isProcessing]);
+
+  useEffect(() => {
+    vad.onSpeechEnd(() => {
+      if (vadTriggeredRef.current && stt.isListening) {
+        stt.stop();
+      }
+    });
+  }, [vad, stt]);
+
+  // Determine orb state
   const orbState: OrbState = stt.isListening
     ? 'listening'
     : isProcessing
       ? 'processing'
       : tts.isSpeaking
         ? 'speaking'
-        : 'idle';
+        : (settings.vadEnabled && vad.isActive)
+          ? 'vad-ready'
+          : 'idle';
 
   const handleOrbClick = useCallback(() => {
     if (tts.isSpeaking) {
@@ -97,7 +138,6 @@ export default function VoiceInterface({
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' && !e.repeat && !spaceHeldRef.current) {
-        // Ignore if user is typing in an input
         const tag = (e.target as HTMLElement)?.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
         e.preventDefault();
@@ -128,7 +168,7 @@ export default function VoiceInterface({
       {/* Top bar */}
       <div className="absolute top-4 left-4 flex items-center gap-2">
         <div className={`w-2.5 h-2.5 rounded-full ${statusDot}`} />
-        <span className="text-xs text-gray-500">{gatewayStatus}</span>
+        <span className="text-xs text-gray-500">{profileName}</span>
       </div>
 
       <div className="absolute top-4 right-4 flex items-center gap-2">
@@ -162,15 +202,16 @@ export default function VoiceInterface({
           if (stt.isListening) stt.stop();
         }}
         transcript={stt.isListening ? stt.transcript : undefined}
+        vadActive={settings.vadEnabled && vad.isActive}
       />
 
-      {/* Debug info */}
+      {/* STT error */}
       {stt.error && (
         <p className="mt-2 text-red-400 text-xs">{stt.error}</p>
       )}
 
-      {/* Streaming text */}
-      {streamingText && !tts.isSpeaking && (
+      {/* Streaming text (when not in transcript) */}
+      {streamingText && !tts.isSpeaking && messages.length === 0 && (
         <p className="mt-6 text-gray-300 text-sm max-w-md text-center px-4 line-clamp-3">
           {streamingText}
         </p>
@@ -189,6 +230,7 @@ export default function VoiceInterface({
         gatewayUrl={gatewayUrl}
         authToken={authToken}
         onReconnect={reconnect}
+        profileName={profileName}
       />
     </div>
   );

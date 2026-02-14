@@ -35,8 +35,8 @@ export function makeConnectFrame(token: string): WsRequest {
       client: {
         mode: 'webchat',
         platform: 'web',
-        version: '0.1.0',
-        id: 'webchat',
+        version: '0.2.0',
+        id: 'openclaw-voice',
         displayName: 'OpenClaw Voice',
       },
       auth: { token },
@@ -59,15 +59,17 @@ export function makeChatSendFrame(message: string, sessionKey: string): WsReques
   };
 }
 
+export function makeSessionHistoryFrame(sessionKey: string): WsRequest {
+  return {
+    type: 'req',
+    method: 'session.history',
+    id: nextId(),
+    params: { sessionKey },
+  };
+}
+
 /**
- * Chat event payload shape:
- * {
- *   runId: string,
- *   sessionKey: string,
- *   seq: number,
- *   state: "delta" | "final" | "error" | ...,
- *   message?: { role: "assistant", content: [{ type: "text", text: "..." }], timestamp: number }
- * }
+ * Chat event payload shape
  */
 export interface ChatEventPayload {
   runId: string;

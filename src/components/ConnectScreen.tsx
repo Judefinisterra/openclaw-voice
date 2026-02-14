@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { load, save } from '../lib/storage';
-import type { ConnectionConfig } from '../types';
+import { loadProfiles, saveProfiles, loadActiveProfileId, saveActiveProfileId } from '../lib/storage';
+import type { Profile } from '../types';
 
 interface ConnectScreenProps {
   onConnect: (url: string, token: string, sessionKey: string) => void;
@@ -8,14 +8,46 @@ interface ConnectScreenProps {
   error: string | null;
 }
 
+function generateId() {
+  return Math.random().toString(36).slice(2, 8);
+}
+
 export default function ConnectScreen({ onConnect, status, error }: ConnectScreenProps) {
-  const saved = load<Partial<ConnectionConfig>>('connection', {});
-  const [url, setUrl] = useState(saved.gatewayUrl ?? 'ws://localhost:19010');
-  const [token, setToken] = useState(saved.authToken ?? '');
+  const [profiles, setProfiles] = useState<Profile[]>(loadProfiles);
+  const [activeId, setActiveId] = useState(loadActiveProfileId);
+  const [editing, setEditing] = useState(false);
+  const [editProfile, setEditProfile] = useState<Profile | null>(null);
+
+  const active = profiles.find((p) => p.id === activeId) ?? profiles[0];
 
   const handleConnect = () => {
-    save('connection', { gatewayUrl: url, authToken: token });
-    onConnect(url, token, 'main');
+    if (!active) return;
+    saveActiveProfileId(active.id);
+    onConnect(active.gatewayUrl, active.authToken, active.sessionKey);
+  };
+
+  const handleSaveProfile = () => {
+    if (!editProfile) return;
+    const updated = profiles.some((p) => p.id === editProfile.id)
+      ? profiles.map((p) => (p.id === editProfile.id ? editProfile : p))
+      : [...profiles, editProfile];
+    setProfiles(updated);
+    saveProfiles(updated);
+    setActiveId(editProfile.id);
+    saveActiveProfileId(editProfile.id);
+    setEditing(false);
+    setEditProfile(null);
+  };
+
+  const handleDeleteProfile = (id: string) => {
+    const updated = profiles.filter((p) => p.id !== id);
+    if (updated.length === 0) return; // keep at least one
+    setProfiles(updated);
+    saveProfiles(updated);
+    if (activeId === id) {
+      setActiveId(updated[0].id);
+      saveActiveProfileId(updated[0].id);
+    }
   };
 
   return (
@@ -28,38 +60,133 @@ export default function ConnectScreen({ onConnect, status, error }: ConnectScree
             </svg>
           </div>
           <h1 className="text-2xl font-bold">OpenClaw Voice</h1>
-          <p className="text-gray-400 text-sm mt-1">Connect to your gateway</p>
+          <p className="text-gray-400 text-sm mt-1">Select a profile and connect</p>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Gateway URL</label>
-            <input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="ws://localhost:4800"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
-            />
+        {!editing ? (
+          <div className="space-y-4">
+            {/* Profile selector */}
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Profile</label>
+              <select
+                value={activeId}
+                onChange={(e) => {
+                  setActiveId(e.target.value);
+                  saveActiveProfileId(e.target.value);
+                }}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
+              >
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — {p.gatewayUrl}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {active && (
+              <div className="text-xs text-gray-500 space-y-1">
+                <p>URL: {active.gatewayUrl}</p>
+                <p>Session: {active.sessionKey}</p>
+              </div>
+            )}
+
+            <button
+              onClick={handleConnect}
+              disabled={status === 'connecting' || !active}
+              className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg py-3 font-medium transition-colors"
+            >
+              {status === 'connecting' ? 'Connecting...' : `Connect to ${active?.name ?? 'agent'}`}
+            </button>
+
+            {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setEditProfile(active ? { ...active } : null); setEditing(true); }}
+                className="flex-1 bg-gray-800 hover:bg-gray-700 rounded-lg py-2 text-sm transition-colors"
+              >
+                Edit Profile
+              </button>
+              <button
+                onClick={() => {
+                  setEditProfile({
+                    id: generateId(),
+                    name: 'New Agent',
+                    gatewayUrl: 'wss://josephs-mac-mini.taile0da4a.ts.net',
+                    authToken: '',
+                    sessionKey: 'main',
+                    voiceUri: '',
+                  });
+                  setEditing(true);
+                }}
+                className="flex-1 bg-gray-800 hover:bg-gray-700 rounded-lg py-2 text-sm transition-colors"
+              >
+                + New Profile
+              </button>
+            </div>
+
+            {profiles.length > 1 && (
+              <button
+                onClick={() => handleDeleteProfile(activeId)}
+                className="w-full text-red-400 hover:text-red-300 text-xs py-1"
+              >
+                Delete "{active?.name}"
+              </button>
+            )}
           </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Auth Token</label>
-            <input
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              type="password"
-              placeholder="Enter your token"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
-            />
+        ) : editProfile ? (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Profile Name</label>
+              <input
+                value={editProfile.name}
+                onChange={(e) => setEditProfile({ ...editProfile, name: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Gateway URL</label>
+              <input
+                value={editProfile.gatewayUrl}
+                onChange={(e) => setEditProfile({ ...editProfile, gatewayUrl: e.target.value })}
+                placeholder="wss://host:port"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Auth Token</label>
+              <input
+                value={editProfile.authToken}
+                onChange={(e) => setEditProfile({ ...editProfile, authToken: e.target.value })}
+                type="password"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Session Key</label>
+              <input
+                value={editProfile.sessionKey}
+                onChange={(e) => setEditProfile({ ...editProfile, sessionKey: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleSaveProfile}
+                className="flex-1 bg-blue-600 hover:bg-blue-500 rounded-lg py-3 font-medium transition-colors"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => { setEditing(false); setEditProfile(null); }}
+                className="flex-1 bg-gray-800 hover:bg-gray-700 rounded-lg py-3 font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-          <button
-            onClick={handleConnect}
-            disabled={status === 'connecting'}
-            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg py-3 font-medium transition-colors"
-          >
-            {status === 'connecting' ? 'Connecting...' : 'Connect'}
-          </button>
-          {error && <p className="text-red-400 text-sm text-center">{error}</p>}
-        </div>
+        ) : null}
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import {
   makeConnectFrame,
   makeChatSendFrame,
+  makeSessionHistoryFrame,
   extractTextFromMessage,
   type WsFrame,
   type ChatEventPayload,
@@ -21,7 +22,7 @@ export function useGateway() {
   const configRef = useRef({ url: '', token: '', sessionKey: 'main' });
   const onCompleteRef = useRef<((text: string) => void) | null>(null);
   const connectIdRef = useRef<string | null>(null);
-  // Accumulate delta text across streaming events
+  const historyIdRef = useRef<string | null>(null);
   const accumulatedTextRef = useRef('');
 
   const connect = useCallback((url: string, token: string, sessionKey: string) => {
@@ -31,6 +32,7 @@ export function useGateway() {
     configRef.current = { url, token, sessionKey };
     setStatus('connecting');
     setError(null);
+    setMessages([]);
 
     const ws = new WebSocket(url);
     wsRef.current = ws;
@@ -53,6 +55,10 @@ export function useGateway() {
       if (frame.type === 'res' && frame.id === connectIdRef.current) {
         if (frame.ok) {
           setStatus('connected');
+          // Fetch session history
+          const histFrame = makeSessionHistoryFrame(sessionKey);
+          historyIdRef.current = histFrame.id;
+          ws.send(JSON.stringify(histFrame));
         } else {
           setStatus('error');
           setError(frame.error?.message ?? 'Connection rejected');
@@ -60,10 +66,32 @@ export function useGateway() {
         return;
       }
 
+      // Handle history response
+      if (frame.type === 'res' && frame.id === historyIdRef.current) {
+        if (frame.ok && frame.payload) {
+          const payload = frame.payload as { messages?: Array<{ role: string; content: Array<{ type: string; text?: string }>; timestamp?: number }> };
+          if (payload.messages) {
+            const histMsgs: Message[] = payload.messages
+              .filter((m) => m.role === 'user' || m.role === 'assistant')
+              .map((m) => ({
+                role: m.role as 'user' | 'assistant',
+                text: m.content
+                  .filter((c) => c.type === 'text' && c.text)
+                  .map((c) => c.text!)
+                  .join(''),
+                timestamp: m.timestamp ?? Date.now(),
+              }))
+              .filter((m) => m.text);
+            setMessages(histMsgs);
+          }
+        }
+        return;
+      }
+
       // Handle chat events
       if (frame.type === 'event' && frame.event === 'chat') {
         const payload = frame.payload as unknown as ChatEventPayload;
-        
+
         if (payload.state === 'delta') {
           const text = extractTextFromMessage(payload.message);
           if (text) {
@@ -74,9 +102,8 @@ export function useGateway() {
 
         if (payload.state === 'final') {
           const finalText = extractTextFromMessage(payload.message);
-          // Final text is the complete message, not a delta
           const completeText = finalText || accumulatedTextRef.current;
-          
+
           setIsProcessing(false);
           setStreamingText('');
           accumulatedTextRef.current = '';
