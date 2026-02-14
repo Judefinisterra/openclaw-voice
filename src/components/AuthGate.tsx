@@ -109,6 +109,7 @@ export default function AuthGate({ children }: AuthGateProps) {
           setPassword(pw);
           setProfiles(newProfiles);
           setRooms([]);
+          setScreen('login'); // triggers re-render into main app
         }}
       />
     );
@@ -262,7 +263,7 @@ function LoginScreen({
 function SetupScreen({
   onComplete,
 }: {
-  onComplete: (password: string, profiles: Profile[]) => void;
+  onComplete: (password: string, profiles: Profile[]) => void | Promise<void>;
 }) {
   const [step, setStep] = useState<'password' | 'agents'>('password');
   const [pw, setPw] = useState('');
