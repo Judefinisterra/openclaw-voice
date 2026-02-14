@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { load, save, loadProfiles, saveProfiles, loadActiveProfileId, loadElevenLabsKey, saveElevenLabsKey } from '../lib/storage';
+import { loadOpenAIKey, saveOpenAIKey } from '../hooks/useWhisper';
 import type { Settings as SettingsType } from '../types';
 import type { ElevenLabsVoice } from '../hooks/useElevenLabs';
 
@@ -41,6 +42,8 @@ export default function Settings({
   const [token, setToken] = useState(authToken);
   const [elevenKey, setElevenKey] = useState(() => loadElevenLabsKey());
   const [elevenKeySaved, setElevenKeySaved] = useState(false);
+  const [openaiKey, setOpenaiKey] = useState(() => loadOpenAIKey());
+  const [openaiKeySaved, setOpenaiKeySaved] = useState(false);
 
   useEffect(() => {
     setUrl(gatewayUrl);
@@ -157,6 +160,38 @@ export default function Settings({
           >
             Reconnect
           </button>
+
+          <hr className="border-white/10" />
+
+          {/* OpenAI Whisper STT Section */}
+          <div>
+            <h3 className="text-sm font-semibold text-green-400 mb-2">🎤 OpenAI Whisper (STT)</h3>
+            <label className="block text-xs text-gray-400 mb-1">API Key</label>
+            <div className="flex gap-2">
+              <input
+                value={openaiKey}
+                onChange={(e) => setOpenaiKey(e.target.value)}
+                type="password"
+                placeholder="sk-..."
+                className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm"
+              />
+              <button
+                onClick={() => {
+                  saveOpenAIKey(openaiKey);
+                  setOpenaiKeySaved(true);
+                  setTimeout(() => setOpenaiKeySaved(false), 2000);
+                }}
+                className={`px-3 py-2 rounded text-xs font-medium transition-colors ${
+                  openaiKeySaved ? 'bg-green-600' : 'bg-gray-700 hover:bg-gray-600'
+                }`}
+              >
+                {openaiKeySaved ? '✓' : 'Save'}
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-600 mt-1">
+              {openaiKey ? '✅ Whisper enabled — much better transcription' : 'Without key: uses browser speech recognition (poor quality)'}
+            </p>
+          </div>
 
           <hr className="border-white/10" />
 

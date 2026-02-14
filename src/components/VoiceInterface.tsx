@@ -4,6 +4,7 @@ import Transcript from './Transcript';
 import Settings from './Settings';
 import ToggleSwitch from './ToggleSwitch';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useWhisper } from '../hooks/useWhisper';
 import { useTTS } from '../hooks/useTTS';
 import { useVAD } from '../hooks/useVAD';
 import { load, save, loadListeningMode, saveListeningMode } from '../lib/storage';
@@ -41,7 +42,10 @@ export default function VoiceInterface({
   onOpenSidebar,
   sessionKey,
 }: VoiceInterfaceProps) {
-  const stt = useSpeechRecognition();
+  const browserStt = useSpeechRecognition();
+  const whisper = useWhisper();
+  // Use Whisper when configured, fall back to browser Web Speech API
+  const stt = whisper.isConfigured() ? whisper : browserStt;
   const tts = useTTS();
   const vad = useVAD();
   const [settingsOpen, setSettingsOpen] = useState(false);
