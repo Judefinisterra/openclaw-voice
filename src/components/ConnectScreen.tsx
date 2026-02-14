@@ -113,7 +113,7 @@ export default function ConnectScreen({ onConnect, status, error }: ConnectScree
                   setEditProfile({
                     id: generateId(),
                     name: 'New Agent',
-                    gatewayUrl: 'wss://illustrated-bags-academy-commissioner.trycloudflare.com',
+                    gatewayUrl: 'wss://timely-ellis-seeks-cook.trycloudflare.com',
                     authToken: '',
                     sessionKey: 'main',
                     voiceUri: '',
