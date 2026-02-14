@@ -27,6 +27,7 @@ export function useGateway() {
   const historyIdRef = useRef<string | null>(null);
   const sessionListIdRef = useRef<string | null>(null);
   const accumulatedTextRef = useRef('');
+  const currentRunIdRef = useRef<string | null>(null);
 
   const connect = useCallback((url: string, token: string, sessionKey: string) => {
     if (wsRef.current) {
@@ -116,6 +117,11 @@ export function useGateway() {
         const payload = frame.payload as unknown as ChatEventPayload;
 
         if (payload.state === 'delta') {
+          // Reset accumulator if this is a new run
+          if (payload.runId && payload.runId !== currentRunIdRef.current) {
+            currentRunIdRef.current = payload.runId;
+            accumulatedTextRef.current = '';
+          }
           const text = extractTextFromMessage(payload.message);
           if (text) {
             accumulatedTextRef.current += text;
@@ -130,6 +136,7 @@ export function useGateway() {
           setIsProcessing(false);
           setStreamingText('');
           accumulatedTextRef.current = '';
+          currentRunIdRef.current = null;
 
           if (completeText) {
             setMessages((msgs) => [
