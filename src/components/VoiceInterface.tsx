@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import Orb from './Orb';
 import Transcript from './Transcript';
 import Settings from './Settings';
@@ -90,6 +90,35 @@ export default function VoiceInterface({
       }
       stt.start();
     }
+  }, [stt, tts]);
+
+  // Spacebar push-to-talk
+  const spaceHeldRef = useRef(false);
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat && !spaceHeldRef.current) {
+        // Ignore if user is typing in an input
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        e.preventDefault();
+        spaceHeldRef.current = true;
+        if (tts.isSpeaking) tts.cancel();
+        if (stt.supported && !stt.isListening) stt.start();
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && spaceHeldRef.current) {
+        e.preventDefault();
+        spaceHeldRef.current = false;
+        if (stt.isListening) stt.stop();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
   }, [stt, tts]);
 
   const statusDot = gatewayStatus === 'connected' ? 'bg-green-500' : 'bg-red-500';
