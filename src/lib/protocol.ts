@@ -36,7 +36,7 @@ export function makeConnectFrame(token: string): WsRequest {
         mode: 'webchat',
         platform: 'web',
         version: '0.2.0',
-        id: 'openclaw-voice',
+        id: 'webchat',
         displayName: 'OpenClaw Voice',
       },
       auth: { token },
